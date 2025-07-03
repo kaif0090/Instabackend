@@ -29,7 +29,12 @@ mongoose
 // === User Schema ===
 
 // === Middleware ===
-app.use(cors({ origin: "http://localhost:5173", credentials: true }));
+app.use(
+  cors({
+    origin: "http://localhost:5173", // or your frontend URL
+    credentials: true, // 👈 required for cookies
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -73,7 +78,8 @@ app.post("/api/signup", upload.single("img"), async (req, res) => {
     const { name, email, password } = req.body;
 
     const existing = await User.findOne({ email });
-    if (existing) return res.status(400).json({ message: "User already exists" });
+    if (existing)
+      return res.status(400).json({ message: "User already exists" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
