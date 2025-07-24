@@ -15,47 +15,41 @@ const Reel = require("./module/reelsSchema");
 const app = express();
 const PORT = process.env.PORT || 3033;
 
-// === ENV Secrets ===
+// === ENV ===
 const DB = process.env.MONGO_URI;
 const JWT_SECRET = process.env.JWT_SECRET;
 
 // === Connect to MongoDB ===
-mongoose
-  .connect(DB)
+mongoose.connect(DB)
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB error:", err));
 
-// === Middlewares ===
+// === CORS Configuration ===
 app.use(cors({
-  origin: ["http://localhost:5173", "https://kaif-insta09.netlify.app"], // ✅ no trailing slash
-  credentials: true, // ✅ required for cookies
+  origin: "https://kaif-insta09.netlify.app",
+  credentials: true,
 }));
 
+// === Body Parsers ===
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-res.cookie("token", token, {
-  httpOnly: true,
-  secure: true,
-  sameSite: "None", // ✅ required for cross-origin cookies
-});
 
-// === Create /uploads folder if not exist ===
+// === Multer Upload Setup ===
 const uploadDir = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
-// === Serve uploaded files ===
-app.use("/uploads", express.static(uploadDir));
-
-// === Multer Setup ===
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
-    const uniqueName = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueName + path.extname(file.originalname));
+    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, unique + path.extname(file.originalname));
   }
 });
 const upload = multer({ storage });
+
+// === Serve uploads ===
+app.use("/uploads", express.static(uploadDir));
 
 // === Auth Middleware ===
 function authMiddleware(req, res, next) {
@@ -72,40 +66,38 @@ function authMiddleware(req, res, next) {
 }
 
 // === Ping Route ===
-app.get("/api/ping", (req, res) => res.send("✅ API working"));
+app.get("/api/ping", (req, res) => res.send("✅ API is working!"));
 
-// === Signup Route ===
+// === Signup ===
 app.post("/api/signup", upload.single("img"), async (req, res) => {
   try {
     const { name, email, password } = req.body;
-
     const existing = await User.findOne({ email });
     if (existing) return res.status(400).json({ message: "User already exists" });
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
+    const hashed = await bcrypt.hash(password, 10);
     const user = await User.create({
       name,
       email,
-      password: hashedPassword,
+      password: hashed,
       img: req.file?.filename || "",
     });
 
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "1h" });
-    res.cookie("token", token, { httpOnly: true, sameSite: "Lax" }).json({
-      message: "Signup successful",
-      user,
-    });
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+    }).json({ message: "Signup successful", user });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// === Login Route ===
+// === Login ===
 app.post("/api/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: "User not found" });
 
@@ -113,16 +105,17 @@ app.post("/api/login", async (req, res) => {
     if (!match) return res.status(400).json({ message: "Invalid password" });
 
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "1h" });
-    res.cookie("token", token, { httpOnly: true, sameSite: "Lax" }).json({
-      message: "Login successful",
-      user,
-    });
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "None",
+    }).json({ message: "Login successful", user });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// === Profile Route (Protected) ===
+// === Get Profile ===
 app.get("/api/profile", authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-password");
@@ -132,28 +125,28 @@ app.get("/api/profile", authMiddleware, async (req, res) => {
   }
 });
 
-// === Logout Route ===
+// === Logout ===
 app.get("/api/logout", (req, res) => {
-  res.clearCookie("token").status(200).json({ message: "Logged out successfully" });
+  res.clearCookie("token", {
+    sameSite: "None",
+    secure: true,
+  }).json({ message: "Logged out" });
 });
 
-// === Create Reel ===
+// === Post Reels ===
 app.post("/api/reels", async (req, res) => {
   try {
     const { file, des } = req.body;
+    if (!file || !des) return res.status(400).json({ message: "Missing data" });
 
-    if (!file || !des) {
-      return res.status(400).json({ message: "File and description required" });
-    }
-
-    const newReel = await Reel.create({ file, des });
-    res.status(201).json({ message: "Reel created", reel: newReel });
+    const reel = await Reel.create({ file, des });
+    res.status(201).json({ message: "Reel posted", reel });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// === Get All Reels ===
+// === Get Reels ===
 app.get("/api/reels", async (req, res) => {
   try {
     const reels = await Reel.find().sort({ createdAt: -1 });
@@ -165,5 +158,5 @@ app.get("/api/reels", async (req, res) => {
 
 // === Start Server ===
 app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
