@@ -13,7 +13,7 @@ const User = require("./module/userSchema");
 const Reel = require("./module/reelsSchema");
 
 const app = express();
-const PORT = 3033;
+const PORT = process.env.PORT || 3033;
 
 // === ENV Secrets ===
 const DB = process.env.MONGO_URI;
@@ -30,7 +30,6 @@ app.use(cors({
   origin: ["http://localhost:5173", "https://instaclone0090.netlify.app"],
   credentials: true,
 }));
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -66,6 +65,9 @@ function authMiddleware(req, res, next) {
   }
 }
 
+// === Ping Route ===
+app.get("/api/ping", (req, res) => res.send("✅ API working"));
+
 // === Signup Route ===
 app.post("/api/signup", upload.single("img"), async (req, res) => {
   try {
@@ -80,11 +82,11 @@ app.post("/api/signup", upload.single("img"), async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      img: req.file?.filename || "", // Safe fallback if no file
+      img: req.file?.filename || "",
     });
 
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "1h" });
-    res.cookie("token", token, { httpOnly: true }).json({
+    res.cookie("token", token, { httpOnly: true, sameSite: "Lax" }).json({
       message: "Signup successful",
       user,
     });
@@ -105,7 +107,7 @@ app.post("/api/login", async (req, res) => {
     if (!match) return res.status(400).json({ message: "Invalid password" });
 
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "1h" });
-    res.cookie("token", token, { httpOnly: true }).json({
+    res.cookie("token", token, { httpOnly: true, sameSite: "Lax" }).json({
       message: "Login successful",
       user,
     });
@@ -126,11 +128,10 @@ app.get("/api/profile", authMiddleware, async (req, res) => {
 
 // === Logout Route ===
 app.get("/api/logout", (req, res) => {
-  res.clearCookie("token");
-  res.status(200).json({ message: "Logged out successfully" });
+  res.clearCookie("token").status(200).json({ message: "Logged out successfully" });
 });
 
-// === Create Reel (simple JSON post) ===
+// === Create Reel ===
 app.post("/api/reels", async (req, res) => {
   try {
     const { file, des } = req.body;
