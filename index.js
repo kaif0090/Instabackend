@@ -27,12 +27,18 @@ mongoose
 
 // === Middlewares ===
 app.use(cors({
-  origin: ["http://localhost:5173", "https://kaif-insta09.netlify.app/"],
-  credentials: true,
+  origin: ["http://localhost:5173", "https://kaif-insta09.netlify.app"], // ✅ no trailing slash
+  credentials: true, // ✅ required for cookies
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+res.cookie("token", token, {
+  httpOnly: true,
+  secure: true,
+  sameSite: "None", // ✅ required for cross-origin cookies
+});
 
 // === Create /uploads folder if not exist ===
 const uploadDir = path.join(__dirname, "uploads");
