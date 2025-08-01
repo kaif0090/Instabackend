@@ -27,12 +27,12 @@
     .catch((err) => console.error("❌ MongoDB error:", err));
 
   // === CORS Configuration ===
-  app.use(
-    cors({
-      origin: "https://kaif-insta09.netlify.app",
-      credentials: true,
-    })
-  );
+app.use(
+  cors({
+    origin: "*", // Allow all origins
+    credentials: false, // Must be false when origin is '*'
+  })
+);
 
   // === Body Parsers ===
   app.use(express.json());
