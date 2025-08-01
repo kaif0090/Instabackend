@@ -28,8 +28,14 @@ mongoose
 // === CORS Configuration ===
 app.use(
   cors({
-    origin: ["https://kaif-insta09.netlify.app", "http://localhost:5173"],
-    credentials: true, // ✅ allow cookies
+    origin: [
+      "https://kaif-insta09.netlify.app",
+      "http://localhost:5173",
+      "http://localhost:3000",
+    ],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
@@ -38,6 +44,28 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+function authMiddleware(req, res, next) {
+  const token = req.cookies.token;
+
+  if (!token) {
+    return res
+      .status(401)
+      .json({ message: "Access denied. No token provided." });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    console.error("Token verification error:", err);
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+}
+
+app.get("/api/test-auth", authMiddleware, (req, res) => {
+  res.json({ message: "Authentication working", user: req.user });
+});
 // === Multer Upload Setup ===
 const uploadDir = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
@@ -103,26 +131,56 @@ app.post("/api/signup", upload.single("img"), async (req, res) => {
 // === Login ===
 app.post("/api/login", async (req, res) => {
   try {
+    console.log("Login attempt:", req.body);
+
     const { email, password } = req.body;
+
+    // Validate input
+    if (!email || !password) {
+      return res
+        .status(400)
+        .json({ message: "Email and password are required" });
+    }
+
+    // Find user
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: "User not found" });
+    if (!user) {
+      return res.status(400).json({ message: "Invalid email or password" });
+    }
 
+    // Check password
     const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(400).json({ message: "Invalid password" });
+    if (!match) {
+      return res.status(400).json({ message: "Invalid email or password" });
+    }
 
-    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "1h" });
-    res
-      .cookie("token", token, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "None",
-      })
-      .json({ message: "Login successful", user });
+    // Generate JWT token
+    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "24h" });
+
+    // Set cookie with proper options
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production", // Only secure in production
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    };
+
+    res.cookie("token", token, cookieOptions).json({
+      message: "Login successful",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        img: user.img,
+      },
+    });
+
+    console.log("Login successful for:", user.email);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("Login error:", err);
+    res.status(500).json({ message: "Internal server error" });
   }
 });
-
 // === Get Profile ===
 app.get("/api/profile", authMiddleware, async (req, res) => {
   try {
