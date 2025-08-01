@@ -28,7 +28,7 @@ mongoose
 // === CORS Configuration ===
 app.use(
   cors({
-    origin: ["https://kaif-insta09.netlify.app", "http://localhost:5173/"],
+    origin: ["https://kaif-insta09.netlify.app", "http://localhost:5173"],
     credentials: true, // ✅ allow cookies
   })
 );
