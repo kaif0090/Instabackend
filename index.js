@@ -29,8 +29,8 @@
   // === CORS Configuration ===
 app.use(
   cors({
-    origin: "*", // Allow all origins
-    credentials: false, // Must be false when origin is '*'
+    origin: "https://kaif-insta09.netlify.app",
+    credentials: true, // ✅ allow cookies
   })
 );
 
